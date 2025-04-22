@@ -1,0 +1,9 @@
+flask==3.0.0
+flask-cors==4.0.0
+numpy==1.26.2
+opencv-python-headless==4.8.1.78
+ultralytics
+werkzeug>=3.0.0
+setuptools>=68.0.0
+nbformat>=5.7.0
+nbconvert>=7.2.0 
