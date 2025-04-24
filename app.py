@@ -40,25 +40,40 @@ def save_video_number(number):
         json.dump({'count': number}, f)
 
 def get_latest_processed_video():
-    """Get the filename of the latest processed video"""
+    """Get the filename and detection results of the latest processed video"""
     files = glob.glob(os.path.join(PROCESSED_FOLDER, '*_out.mp4'))
     if not files:
-        return None
+        return None, None
+    
     # Sort files by modification time, newest first
     latest_file = max(files, key=os.path.getmtime)
-    return os.path.basename(latest_file)
+    filename = os.path.basename(latest_file)
+    
+    # Try to get detection results
+    results_file = os.path.join(PROCESSED_FOLDER, f"{os.path.splitext(filename)[0]}_results.json")
+    detected_labels = []
+    if os.path.exists(results_file):
+        try:
+            with open(results_file, 'r') as f:
+                results = json.load(f)
+                detected_labels = results.get('detected_labels', [])
+        except:
+            logger.error(f"Error reading results file: {results_file}")
+    
+    return filename, detected_labels
 
 @app.route('/api/latest-video', methods=['GET'])
 def get_latest_video():
     """Get information about the latest processed video"""
-    latest_filename = get_latest_processed_video()
-    if not latest_filename:
+    filename, detected_labels = get_latest_processed_video()
+    if not filename:
         return jsonify({'error': 'No processed videos found'}), 404
     
     return jsonify({
         'success': True,
-        'filename': latest_filename,
-        'video_url': f'/processed/{latest_filename}'
+        'filename': filename,
+        'video_url': f'/processed/{filename}',
+        'detected_labels': detected_labels
     })
 
 @app.route('/api/all-videos', methods=['GET'])
@@ -74,9 +89,21 @@ def get_all_videos():
     videos = []
     for file_path in files:
         filename = os.path.basename(file_path)
+        # Try to get detection results
+        results_file = os.path.join(PROCESSED_FOLDER, f"{os.path.splitext(filename)[0]}_results.json")
+        detected_labels = []
+        if os.path.exists(results_file):
+            try:
+                with open(results_file, 'r') as f:
+                    results = json.load(f)
+                    detected_labels = results.get('detected_labels', [])
+            except:
+                logger.error(f"Error reading results file: {results_file}")
+        
         videos.append({
             'filename': filename,
-            'video_url': f'/processed/{filename}'
+            'video_url': f'/processed/{filename}',
+            'detected_labels': detected_labels
         })
     
     return jsonify({
@@ -98,6 +125,15 @@ def process_video():
     if video_file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
     
+    # Get suggested labels if provided
+    suggested_labels = []
+    if 'suggested_labels' in request.form:
+        try:
+            suggested_labels = json.loads(request.form['suggested_labels'])
+            logger.info(f"Received suggested labels: {suggested_labels}")
+        except:
+            logger.warning("Could not parse suggested labels")
+    
     try:
         # Get next video number
         video_number = get_next_video_number()
@@ -114,19 +150,31 @@ def process_video():
         output_filename = f"{video_number}_out.mp4"
         processed_video_path = processor.process_video_from_bytes(
             video_bytes, 
-            output_filename=output_filename
+            output_filename=output_filename,
+            suggested_labels=suggested_labels
         )
         logger.info(f"Video processing completed. Output saved to: {processed_video_path}")
         
         if not os.path.exists(processed_video_path):
             raise FileNotFoundError(f"Processed video not found at {processed_video_path}")
 
+        # Save detection results
+        results_filename = f"{video_number}_out_results.json"
+        results_path = os.path.join(PROCESSED_FOLDER, results_filename)
+        detected_labels = processor.get_detected_labels()  # You'll need to implement this in VideoProcessor
+        with open(results_path, 'w') as f:
+            json.dump({
+                'detected_labels': detected_labels,
+                'suggested_labels': suggested_labels
+            }, f)
+
         # Return the video information
         return jsonify({
             'success': True,
             'video_number': video_number,
             'filename': output_filename,
-            'video_url': f'/processed/{output_filename}'
+            'video_url': f'/processed/{output_filename}',
+            'detected_labels': detected_labels
         })
     
     except Exception as e:
