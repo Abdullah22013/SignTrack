@@ -22,6 +22,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import { styled } from '@mui/material/styles';
 import Footer from '../components/Footer';
+import SignMap from '../components/SignMap';
 
 const AVAILABLE_LABELS = [
   'Green Light',
@@ -123,6 +124,7 @@ const Account = () => {
   const [showComparison, setShowComparison] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [processedVideoFilename, setProcessedVideoFilename] = useState(null);
+  const [signLocations, setSignLocations] = useState([]);
 
   const handleLabelChange = (label) => {
     setSelectedLabels(prev => ({
@@ -149,11 +151,27 @@ const Account = () => {
     }
   };
 
+  // Function to generate a smooth path-like coordinates
+  const generateCoordinates = (index, total) => {
+    // Base path follows a slight curve
+    const progress = index / (total - 1);
+    const baseX = progress * 100; // 0 to 100
+    const baseY = 50 + Math.sin(progress * Math.PI) * 20; // Slight curve
+    
+    // Add small random variation
+    const randomVariation = 5;
+    const x = baseX + (Math.random() - 0.5) * randomVariation;
+    const y = baseY + (Math.random() - 0.5) * randomVariation;
+    
+    return { x, y };
+  };
+
   const handleUploadAndProcess = async () => {
     if (!selectedFile) return;
 
     setUploading(true);
     setProgress(0);
+    setSignLocations([]); // Reset sign locations
     
     try {
       const formData = new FormData();
@@ -182,6 +200,13 @@ const Account = () => {
       setProcessedVideoFilename(data.filename);
       if (data.detected_labels) {
         setDetectedLabels(data.detected_labels);
+        
+        // Generate coordinates for each detected label
+        const locations = data.detected_labels.map((label, index) => ({
+          label,
+          ...generateCoordinates(index, data.detected_labels.length)
+        }));
+        setSignLocations(locations);
       }
       setProcessing(true);
       
@@ -367,22 +392,28 @@ const Account = () => {
               )}
 
               {processedVideoFilename && (
-                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<CloudDownloadIcon />}
-                    onClick={handleDownload}
-                  >
-                    Download Video
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={() => setShowComparison(true)}
-                  >
-                    View Label Comparison
-                  </Button>
-                </Box>
+                <>
+                  <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<CloudDownloadIcon />}
+                      onClick={handleDownload}
+                    >
+                      Download Video
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setShowComparison(true)}
+                    >
+                      View Label Comparison
+                    </Button>
+                  </Box>
+                  
+                  {signLocations.length > 0 && (
+                    <SignMap signLocations={signLocations} />
+                  )}
+                </>
               )}
             </UploadContainer>
           )}
