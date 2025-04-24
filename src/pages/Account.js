@@ -9,6 +9,7 @@ import {
   LinearProgress,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import { styled } from '@mui/material/styles';
 import Footer from '../components/Footer';
 
@@ -38,11 +39,66 @@ const ProcessingText = styled(Typography)(({ theme }) => ({
   color: theme.palette.text.secondary,
 }));
 
+// VideoPlayer component to display videos from the processed folder
+const VideoPlayer = ({ videoFilename }) => {
+  // If the videoFilename starts with '/', assume it's a complete path
+  // Otherwise, construct the path to the processed folder on the backend
+  const videoPath = videoFilename?.startsWith('/') 
+    ? videoFilename 
+    : `http://localhost:5000/processed/${videoFilename}`;
+
+  if (!videoPath) return null;
+
+  return (
+    <Box sx={{ 
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      overflow: 'hidden'
+    }}>
+      <video
+        controls
+        src={videoPath}
+        style={{ 
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          width: '100%',
+          maxHeight: '70vh',
+          objectFit: 'contain'
+        }}
+      >
+        Your browser does not support the video tag.
+      </video>
+    </Box>
+  );
+};
+
 const Account = () => {
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [resultVideo, setResultVideo] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [processedVideoFilename, setProcessedVideoFilename] = useState(null);
+
+  // Load the latest video when component mounts
+  useEffect(() => {
+    fetchLatestProcessedVideo();
+  }, []);
+
+  const fetchLatestProcessedVideo = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/latest-video');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setProcessedVideoFilename(data.filename);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading latest video:', error);
+    }
+  };
 
   useEffect(() => {
     let progressInterval;
@@ -65,6 +121,8 @@ const Account = () => {
       const finalTimer = setTimeout(() => {
         setProgress(100);
         setResultVideo('/result_out.mp4');
+        // Fetch the latest processed video
+        fetchLatestProcessedVideo();
         setProcessing(false);
       }, 10000);
 
@@ -83,11 +141,30 @@ const Account = () => {
     setProgress(0);
     
     try {
-      // First show uploading state
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setUploading(false);
+      // Create form data
+      const formData = new FormData();
+      formData.append('video', file);
+
+      // Send to backend
+      const response = await fetch('http://localhost:5000/api/process-video', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process video');
+      }
+
+      const data = await response.json();
       
-      // Start processing with random progress
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to process video');
+      }
+
+      // Set the video filename from the processed folder
+      setProcessedVideoFilename(data.filename);
+      
+      // Start processing animation (even though it's already processed)
       setProcessing(true);
       
     } catch (error) {
@@ -96,6 +173,29 @@ const Account = () => {
       setProcessing(false);
     } finally {
       event.target.value = '';
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!processedVideoFilename) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/processed/${processedVideoFilename}`);
+      if (!response.ok) {
+        throw new Error('Failed to download video');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = processedVideoFilename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading video:', error);
     }
   };
 
@@ -160,29 +260,26 @@ const Account = () => {
             )}
           </UploadContainer>
 
-          {resultVideo && (
+          {(resultVideo || processedVideoFilename) && (
             <VideoContainer elevation={3}>
               <Typography variant="h6" gutterBottom sx={{ textAlign: 'center' }}>
                 Processed Video Result
               </Typography>
-              <Box sx={{ 
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                overflow: 'hidden'
-              }}>
-                <video
-                  controls
-                  src={resultVideo}
-                  style={{ 
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  Your browser does not support the video tag.
-                </video>
-              </Box>
+              {/* Use the VideoPlayer component to display the video */}
+              <VideoPlayer videoFilename={processedVideoFilename || resultVideo} />
+              
+              {processedVideoFilename && (
+                <Box sx={{ mt: 2, textAlign: 'center' }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<CloudDownloadIcon />}
+                    onClick={handleDownload}
+                  >
+                    Download Video
+                  </Button>
+                </Box>
+              )}
             </VideoContainer>
           )}
         </Box>
