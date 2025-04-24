@@ -48,20 +48,6 @@ const UploadContainer = styled(Paper)(({ theme }) => ({
   backgroundColor: 'rgba(255, 255, 255, 0.9)',
 }));
 
-const VideoContainer = styled(Paper)(({ theme }) => ({
-  marginTop: theme.spacing(4),
-  padding: theme.spacing(2),
-  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  width: '100%',
-  maxWidth: '1600px',
-  margin: '32px auto',
-  '& video': {
-    width: '100%',
-    maxHeight: '70vh',
-    objectFit: 'contain',
-  }
-}));
-
 const ProcessingText = styled(Typography)(({ theme }) => ({
   marginTop: theme.spacing(2),
   color: theme.palette.text.secondary,
@@ -127,70 +113,16 @@ const ComparisonDialog = ({ open, onClose, suggestedLabels, detectedLabels }) =>
   );
 };
 
-const VideoPlayer = ({ videoFilename }) => {
-  const videoPath = videoFilename?.startsWith('/') 
-    ? videoFilename 
-    : `http://localhost:5000/processed/${videoFilename}`;
-
-  if (!videoPath) return null;
-
-  return (
-    <Box sx={{ 
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      overflow: 'hidden'
-    }}>
-      <video
-        controls
-        src={videoPath}
-        style={{ 
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          width: '100%',
-          maxHeight: '70vh',
-          objectFit: 'contain'
-        }}
-      >
-        Your browser does not support the video tag.
-      </video>
-    </Box>
-  );
-};
-
 const Account = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [resultVideo, setResultVideo] = useState(null);
-  const [processedVideoFilename, setProcessedVideoFilename] = useState(null);
   const [progress, setProgress] = useState(0);
   const [selectedLabels, setSelectedLabels] = useState({});
   const [detectedLabels, setDetectedLabels] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-
-  useEffect(() => {
-    fetchLatestProcessedVideo();
-  }, []);
-
-  const fetchLatestProcessedVideo = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/latest-video');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setProcessedVideoFilename(data.filename);
-          if (data.detected_labels) {
-            setDetectedLabels(data.detected_labels);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error loading latest video:', error);
-    }
-  };
+  const [processedVideoFilename, setProcessedVideoFilename] = useState(null);
 
   const handleLabelChange = (label) => {
     setSelectedLabels(prev => ({
@@ -260,6 +192,29 @@ const Account = () => {
     }
   };
 
+  const handleDownload = async () => {
+    if (!processedVideoFilename) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/processed/${processedVideoFilename}`);
+      if (!response.ok) {
+        throw new Error('Failed to download video');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = processedVideoFilename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading video:', error);
+    }
+  };
+
   useEffect(() => {
     let progressInterval;
     if (processing && progress < 100) {
@@ -287,29 +242,6 @@ const Account = () => {
       };
     }
   }, [processing]);
-
-  const handleDownload = async () => {
-    if (!processedVideoFilename) return;
-    
-    try {
-      const response = await fetch(`http://localhost:5000/processed/${processedVideoFilename}`);
-      if (!response.ok) {
-        throw new Error('Failed to download video');
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = processedVideoFilename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Error downloading video:', error);
-    }
-  };
 
   const getStatusText = () => {
     if (uploading) return "Uploading video...";
@@ -429,28 +361,18 @@ const Account = () => {
                     sx={{ height: 8, borderRadius: 4 }}
                   />
                   <ProcessingText variant="body2">
-                    {processing ? `Progress: ${progress}%` : 'Uploading...'}
+                    {processing ? `Progress: ${progress}%` : 'Processing...'}
                   </ProcessingText>
                 </Box>
               )}
-            </UploadContainer>
-          )}
 
-          {(resultVideo || processedVideoFilename) && (
-            <VideoContainer elevation={3}>
-              <Typography variant="h6" gutterBottom sx={{ textAlign: 'center' }}>
-                Processed Video Result
-              </Typography>
-              <VideoPlayer videoFilename={processedVideoFilename || resultVideo} />
-              
               {processedVideoFilename && (
-                <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
                   <Button
                     variant="contained"
                     color="primary"
                     startIcon={<CloudDownloadIcon />}
                     onClick={handleDownload}
-                    sx={{ mr: 2 }}
                   >
                     Download Video
                   </Button>
@@ -462,7 +384,7 @@ const Account = () => {
                   </Button>
                 </Box>
               )}
-            </VideoContainer>
+            </UploadContainer>
           )}
 
           <ComparisonDialog
