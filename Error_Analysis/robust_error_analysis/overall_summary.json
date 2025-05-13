@@ -1,0 +1,13 @@
+{
+    "Total Images": 801,
+    "Total GT Boxes": 944,
+    "Total Predictions": 948,
+    "TP": 828,
+    "FP": 87,
+    "FN (Missed GT Only)": 83,
+    "Misclassified": 33,
+    "Total GT Errors (FN + Misc)": 116,
+    "Precision": 0.9049180327868852,
+    "Recall": 0.8771186440677966,
+    "F1 Score": 0.8908015061861215
+}
