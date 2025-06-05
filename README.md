@@ -175,16 +175,6 @@ Client‑server design with a React frontend and Flask backend, communicating ov
 
 ---
 
-## Contributions
-
-| Member                   | Role                                                                              |
-| ------------------------ | ----------------------------------------------------------------------------------|
-| **Aarya Gupta**          | Model training, EDA, backend API development, performance analysis                |
-| **Abdullah Shujat**      | Model training,Frontend UI, data collection & augmentation, literature review     |
-| **Sargun Singh Khurana** | System integration, UI testing, CI/CD pipeline, debugging                         |
-
----
-
 ## License
 
 This project is released under the [MIT License](LICENSE).
